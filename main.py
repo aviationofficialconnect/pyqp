@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import threading
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, request
@@ -18,7 +17,7 @@ RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
 # Public base URL of your Render web service
-PUBLIC_BASE_URL = "https://pyqp.onrender.com"
+PUBLIC_BASE_URL = "https://pyqp.onrender.com"  # <- keep this as your Render URL
 
 if not BOT_TOKEN:
     raise SystemExit("❌ BOT_TOKEN missing. Add it in Render Secrets.")
@@ -191,6 +190,12 @@ def subjects_menu(stream: str):
     return kb
 
 # --- FAQ data (stable IDs so callback_data stays short/clean) ---
+CONTACT_TEXT = (
+    "🌐 Website: <a href=\"https://examairways.com\">examairways.com</a>\n"
+    "📧 Email: <a href=\"mailto:examairways@gmail.com\">examairways@gmail.com</a>\n"
+    "📸 Instagram: <a href=\"https://www.instagram.com/examairways?igsh=Yjl1YzBmNHAwMGdp\">@examairways</a>"
+)
+
 FAQ_ITEMS = [
     {
         "id": "pay",
@@ -200,7 +205,7 @@ FAQ_ITEMS = [
     {
         "id": "validity",
         "q": "What is the validity?",
-        "a": "Each subscription is valid for 30 days. Special pricing: Pilot \"4 in 1\" is ₹149/month; other subjects are ₹49/month."
+        "a": "Each subscription is valid for 30 days. Special pricing: Pilot '4 in 1' is ₹149/month; other subjects are ₹49/month."
     },
     {
         "id": "renew",
@@ -213,9 +218,14 @@ FAQ_ITEMS = [
         "a": "If you already tapped Join on the private group/channel, the bot approves your request automatically after payment. If not, you'll receive a single-use invite link valid until your expiry."
     },
     {
-        "id": "support",
-        "q": "Contact Support",
-        "a": "📧 examairways@gmail.com\nOr message @Juned_boi"
+        "id": "refund",
+        "q": "Refund Policy",
+        "a": "Digital content cannot be refunded once accessed."
+    },
+    {
+        "id": "contact",
+        "q": "Contact",
+        "a": CONTACT_TEXT
     },
 ]
 
@@ -229,20 +239,25 @@ def faq_menu():
     return kb
 
 # ==========================
-# 6) BOT HANDLERS
+# 6) BOT HANDLERS (INLINE UI)
 # ==========================
 @bot.message_handler(commands=["start"])
 def cmd_start(message):
-    bot.send_message(message.chat.id, "Select your category:", reply_markup=main_menu())
+    welcome = (
+        "Select your category below.\n\n"
+        f"{CONTACT_TEXT}"
+    )
+    bot.send_message(message.chat.id, welcome, reply_markup=main_menu(), disable_web_page_preview=True)
 
 @bot.callback_query_handler(func=lambda c: c.data == "faq")
 def cb_faq(call):
     bot.answer_callback_query(call.id)
     bot.edit_message_text(
-        "Select a question (contact: <b>examairways@gmail.com</b>):",
+        f"Select a question.\n\n{CONTACT_TEXT}",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=faq_menu()
+        reply_markup=faq_menu(),
+        disable_web_page_preview=True
     )
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("faq_q:"))
@@ -256,16 +271,23 @@ def cb_faq_question(call):
     kb = InlineKeyboardMarkup()
     kb.add(InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq"))
     bot.edit_message_text(
-        f"<b>{item['q']}</b>\n\n{item['a']}\n\nFor help: <b>examairways@gmail.com</b>",
+        f"<b>{item['q']}</b>\n\n{item['a']}\n\n{CONTACT_TEXT}",
         call.message.chat.id,
         call.message.message_id,
-        reply_markup=kb
+        reply_markup=kb,
+        disable_web_page_preview=True
     )
 
 @bot.callback_query_handler(func=lambda c: c.data == "back")
 def cb_back(call):
     bot.answer_callback_query(call.id)
-    bot.edit_message_text("Select your category:", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+    bot.edit_message_text(
+        f"Select your category.\n\n{CONTACT_TEXT}",
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=main_menu(),
+        disable_web_page_preview=True
+    )
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("stream:"))
 def cb_stream(call):
@@ -284,7 +306,6 @@ def cb_subject(call):
     _, stream, subject = call.data.split(":", 2)
     try:
         price = get_price(stream, subject)
-
         payment = rz_client.payment_link.create({
             "amount": price * 100,
             "currency": "INR",
@@ -296,7 +317,7 @@ def cb_subject(call):
                 "subject": subject,
             },
             "notify": {"sms": False, "email": False},
-            "callback_url": PUBLIC_BASE_URL,   # After payment, Razorpay will redirect here
+            "callback_url": PUBLIC_BASE_URL,   # Razorpay will redirect here (optional)
             "callback_method": "get",
         })
 
@@ -304,16 +325,18 @@ def cb_subject(call):
             f"Pay ₹{price}/month for <b>{subject}</b>.\n\n"
             f"After successful payment:\n"
             f"• If you've already tapped <i>Join</i> on the group, you'll be auto-approved.\n"
-            f"• Otherwise, you'll receive a single-use invite link.",
+            f"• Otherwise, you'll receive a single-use invite link.\n\n"
+            f"{CONTACT_TEXT}",
             call.message.chat.id,
-            call.message.message_id
+            call.message.message_id,
+            disable_web_page_preview=True
         )
         bot.send_message(call.message.chat.id, payment.get("short_url"))
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Error creating payment link: {e}")
 
 # ==========================
-# 7) FLASK WEB SERVER
+# 7) FLASK WEB SERVER (RAZORPAY + TELEGRAM WEBHOOKS)
 # ==========================
 app = Flask(__name__)
 
@@ -321,6 +344,7 @@ app = Flask(__name__)
 def home():
     return "OK", 200
 
+# Razorpay webhook
 @app.post("/webhook")
 def webhook():
     try:
@@ -335,7 +359,7 @@ def webhook():
             except Exception:
                 return "Invalid signature", 400
 
-        # We care about payment_link.paid
+        # Handle payment_link.paid
         if data.get("event") == "payment_link.paid":
             pl = data["payload"]["payment_link"]["entity"]
             notes = pl.get("notes", {})
@@ -346,17 +370,22 @@ def webhook():
             channel_id = CHANNELS.get(stream, {}).get(subject)
 
             if not channel_id:
-                bot.send_message(user_id, "⚠️ Payment received, but the channel was not found. Please contact support: examairways@gmail.com")
+                bot.send_message(
+                    user_id,
+                    "⚠️ Payment received, but the channel was not found.\n\n"
+                    f"{CONTACT_TEXT}",
+                    disable_web_page_preview=True
+                )
                 return "OK", 200
 
             new_expiry = upsert_subscription(user_id, username, stream, subject, channel_id)
 
-            # 1) Try to approve a pending join request (works if user already tapped 'Join' on the channel)
+            # 1) Try to approve a pending join request
             link = None
             try:
                 bot.approve_chat_join_request(channel_id, user_id)
             except Exception:
-                # 2) Fall back to creating a single-use invite link valid until expiry
+                # 2) Fallback to a single-use invite link valid until expiry
                 try:
                     invite = bot.create_chat_invite_link(
                         channel_id,
@@ -374,17 +403,27 @@ def webhook():
                 f"Valid till: <code>{new_expiry}</code>\n"
             )
             if link:
-                msg += f"Join link: {link}\n"
+                msg += f"Join link: {link}\n\n"
             else:
-                msg += "You have been auto-approved (if you had a pending join request). If you still can't access, contact support.\n"
+                msg += "You have been auto-approved (if you had a pending join request).\n\n"
 
-            msg += "\nSupport: <b>examairways@gmail.com</b>"
-            bot.send_message(user_id, msg)
+            msg += CONTACT_TEXT
+            bot.send_message(user_id, msg, disable_web_page_preview=True)
 
         return "OK", 200
-    except Exception as e:
-        # You can log `e` if needed on your platform
+    except Exception:
         return "ERR", 200
+
+# Telegram webhook endpoint (must be unique path)
+@app.post(f"/telegram/{BOT_TOKEN}")
+def telegram_webhook():
+    try:
+        update = telebot.types.Update.de_json(request.get_data().decode("utf-8"))
+        bot.process_new_updates([update])
+    except Exception:
+        # Avoid leaking errors to Telegram
+        pass
+    return "OK", 200
 
 # ==========================
 # 8) BACKGROUND JOBS
@@ -397,14 +436,16 @@ def job_send_reminders():
         bot.send_message(
             user_id,
             f"⏳ Reminder: Your <b>{subject}</b> subscription expires in {left} day(s).\n"
-            f"Renew any time to extend access by 30 days."
+            f"Renew any time to extend access by 30 days.\n\n"
+            f"{CONTACT_TEXT}",
+            disable_web_page_preview=True
         )
         mark_reminded(user_id, subject)
 
 def job_expire_and_kick():
     for user_id, subject, channel_id in fetch_expired():
         try:
-            # Kick+Unban removes from groups/supergroups; for channels, removing requires admin rights
+            # Works for groups/supergroups; for channels, bot needs admin rights
             bot.ban_chat_member(channel_id, user_id)
             bot.unban_chat_member(channel_id, user_id)
         except Exception:
@@ -418,21 +459,21 @@ def start_scheduler():
     scheduler.start()
 
 # ==========================
-# 9) START
+# 9) START (WEBHOOK MODE)
 # ==========================
 if __name__ == "__main__":
     db_init()
-
-    # Start Flask web server in a background thread
-    def run_web():
-        # Render typically expects port from $PORT, fallback to 8080 locally
-        port = int(os.environ.get("PORT", "8080"))
-        app.run(host="0.0.0.0", port=port, debug=False)
-
-    threading.Thread(target=run_web, daemon=True).start()
-
-    # Start scheduled jobs
     start_scheduler()
 
-    print("✅ Bot is running")
-    bot.infinity_polling(skip_pending=True, timeout=60)
+    # Set Telegram webhook to your Render URL
+    # (re-set on each boot to be safe)
+    try:
+        bot.remove_webhook()
+        bot.set_webhook(url=f"{PUBLIC_BASE_URL}/telegram/{BOT_TOKEN}")
+    except Exception:
+        # If this fails, Telegram will keep previous webhook – usually fine
+        pass
+
+    # Start Flask (no polling)
+    port = int(os.environ.get("PORT", "8080"))
+    app.run(host="0.0.0.0", port=port, debug=False)
