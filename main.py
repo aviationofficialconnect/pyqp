@@ -15,7 +15,8 @@ RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
 RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
 
-PUBLIC_BASE_URL = "https://pyqp.onrender.com"  # Your Render URL
+# Public base URL of your Render web service
+PUBLIC_BASE_URL = "https://pyqp.onrender.com"
 
 if not BOT_TOKEN:
     raise SystemExit("❌ BOT_TOKEN missing. Add it in Render Secrets.")
@@ -73,8 +74,8 @@ def db_connect():
 def db_init():
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS subscriptions (
+    cur.execute(
+        """CREATE TABLE IF NOT EXISTS subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             username TEXT,
@@ -86,12 +87,12 @@ def db_init():
             status TEXT NOT NULL,
             last_reminder_at TEXT,
             UNIQUE(user_id, subject)
-        );
-    """)
+        );"""
+    )
     conn.commit()
     conn.close()
 
-def upsert_subscription(user_id, username, stream, subject, channel_id, extend_days=DAYS_PER_SUB):
+def upsert_subscription(user_id: int, username: str, stream: str, subject: str, channel_id: int, extend_days: int = DAYS_PER_SUB):
     now = datetime.now(timezone.utc)
     conn = db_connect()
     cur = conn.cursor()
@@ -103,12 +104,16 @@ def upsert_subscription(user_id, username, stream, subject, channel_id, extend_d
             new_expiry = current_expiry + timedelta(days=extend_days)
         else:
             new_expiry = now + timedelta(days=extend_days)
-        cur.execute("UPDATE subscriptions SET paid_at=?, expires_at=?, status=?, last_reminder_at=? WHERE user_id=? AND subject=?",
-                    (now.isoformat(), new_expiry.isoformat(), "active", None, user_id, subject))
+        cur.execute(
+            "UPDATE subscriptions SET paid_at=?, expires_at=?, status=?, last_reminder_at=? WHERE user_id=? AND subject=?",
+            (now.isoformat(), new_expiry.isoformat(), "active", None, user_id, subject),
+        )
     else:
         new_expiry = now + timedelta(days=extend_days)
-        cur.execute("INSERT INTO subscriptions (user_id, username, stream, subject, channel_id, paid_at, expires_at, status, last_reminder_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                    (user_id, username, stream, subject, channel_id, now.isoformat(), new_expiry.isoformat(), "active", None))
+        cur.execute(
+            "INSERT INTO subscriptions (user_id, username, stream, subject, channel_id, paid_at, expires_at, status, last_reminder_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (user_id, username, stream, subject, channel_id, now.isoformat(), new_expiry.isoformat(), "active", None),
+        )
     conn.commit()
     conn.close()
     return new_expiry
@@ -128,11 +133,10 @@ def fetch_due_reminders():
             due.append((user_id, subject, exp))
     return due
 
-def mark_reminded(user_id, subject):
+def mark_reminded(user_id: int, subject: str):
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("UPDATE subscriptions SET last_reminder_at=? WHERE user_id=? AND subject=?",
-                (datetime.now(timezone.utc).isoformat(), user_id, subject))
+    cur.execute("UPDATE subscriptions SET last_reminder_at=? WHERE user_id=? AND subject=?", (datetime.now(timezone.utc).isoformat(), user_id, subject))
     conn.commit()
     conn.close()
 
@@ -149,7 +153,7 @@ def fetch_expired():
             expired.append((user_id, subject, channel_id))
     return expired
 
-def mark_expired(user_id, subject):
+def mark_expired(user_id: int, subject: str):
     conn = db_connect()
     cur = conn.cursor()
     cur.execute("UPDATE subscriptions SET status='expired' WHERE user_id=? AND subject=?", (user_id, subject))
@@ -159,7 +163,7 @@ def mark_expired(user_id, subject):
 # ==========================
 # 5) MENUS & HELPERS
 # ==========================
-def get_price(stream, subject):
+def get_price(stream: str, subject: str) -> int:
     if stream == "pilot" and subject == "4 in 1":
         return PRICE_INR_4IN1
     return PRICE_INR_DEFAULT
@@ -171,7 +175,7 @@ def main_menu():
     kb.add(InlineKeyboardButton("FAQ", callback_data="faq"))
     return kb
 
-def subjects_menu(stream):
+def subjects_menu(stream: str):
     kb = InlineKeyboardMarkup()
     for subject in CHANNELS[stream].keys():
         kb.add(InlineKeyboardButton(subject, callback_data=f"subject:{stream}:{subject}"))
@@ -187,11 +191,12 @@ CONTACT_TEXT = (
 FAQ_ITEMS = [
     {"id": "pay", "q": "How to make payment?", "a": "Open the bot, choose your stream and subject, tap Pay (Razorpay). After successful payment you'll receive a single-use invite link."},
     {"id": "validity", "q": "What is the validity?", "a": "Each subscription is valid for 30 days. Special pricing: Pilot '4 in 1' is ₹1/month; other subjects are ₹49/month."},
-    {"id": "renew", "q": "How to renew?", "a": "Before expiry (or after), just pay again for the same subject. Your expiry will extend by 30 days from the current expiry if still active, or from today if expired."},
-    {"id": "access", "q": "How do I get access after payment?", "a": "After payment you'll always receive a single-use invite link valid until your expiry."},
+    {"id": "renew", "q": "How to renew?", "a": "Before expiry (or after), just pay again for the same subject. Your expiry will extend by 30 days."},
+    {"id": "access", "q": "How do I get access after payment?", "a": "You'll receive a single-use invite link valid until your expiry date."},
     {"id": "refund", "q": "Refund Policy", "a": "Digital content cannot be refunded once accessed."},
     {"id": "contact", "q": "Contact", "a": CONTACT_TEXT},
 ]
+
 FAQ_BY_ID = {i["id"]: i for i in FAQ_ITEMS}
 
 def faq_menu():
@@ -224,7 +229,7 @@ def cb_faq_question(call):
         return
     kb = InlineKeyboardMarkup()
     kb.add(InlineKeyboardButton("⬅️ Back to FAQ", callback_data="faq"))
-    bot.edit_message_text(f"<b>{item['q']}</b>\n\n{item['a']}\n\n{CONTACT_TEXT}", call.message.chat.id, call.message.message_id, reply_markup=kb, disable_web_page_preview=True)
+    bot.edit_message_text(f"{item['q']}\n\n{item['a']}\n\n{CONTACT_TEXT}", call.message.chat.id, call.message.message_id, reply_markup=kb, disable_web_page_preview=True)
 
 @bot.callback_query_handler(func=lambda c: c.data == "back")
 def cb_back(call):
@@ -235,7 +240,7 @@ def cb_back(call):
 def cb_stream(call):
     bot.answer_callback_query(call.id)
     stream = call.data.split(":", 1)[1]
-    bot.edit_message_text(f"Select subject for <b>{stream.upper()}</b>:", call.message.chat.id, call.message.message_id, reply_markup=subjects_menu(stream))
+    bot.edit_message_text(f"Select subject for {stream.upper()}:", call.message.chat.id, call.message.message_id, reply_markup=subjects_menu(stream))
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("subject:"))
 def cb_subject(call):
@@ -257,14 +262,18 @@ def cb_subject(call):
             "callback_url": PUBLIC_BASE_URL,
             "callback_method": "get",
         })
-        bot.edit_message_text(f"Pay ₹{price}/month for <b>{subject}</b>.\n\nAfter payment you'll receive a single-use invite link.\n\n{CONTACT_TEXT}",
-                              call.message.chat.id, call.message.message_id, disable_web_page_preview=True)
+        bot.edit_message_text(
+            f"Pay ₹{price}/month for {subject}.\n\nAfter successful payment, you'll receive a single-use invite link valid until your expiry.\n\n{CONTACT_TEXT}",
+            call.message.chat.id,
+            call.message.message_id,
+            disable_web_page_preview=True
+        )
         bot.send_message(call.message.chat.id, payment.get("short_url"))
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Error creating payment link: {e}")
 
 # ==========================
-# 7) FLASK SERVER
+# 7) FLASK SERVER + WEBHOOKS
 # ==========================
 app = Flask(__name__)
 
@@ -283,7 +292,6 @@ def webhook():
                 razorpay.Utility.verify_webhook_signature(payload, signature, RAZORPAY_WEBHOOK_SECRET)
             except Exception:
                 return "Invalid signature", 400
-
         if data.get("event") == "payment_link.paid":
             pl = data["payload"]["payment_link"]["entity"]
             notes = pl.get("notes", {})
@@ -292,32 +300,26 @@ def webhook():
             stream = notes.get("stream")
             subject = notes.get("subject")
             channel_id = CHANNELS.get(stream, {}).get(subject)
-
             if not channel_id:
-                bot.send_message(user_id, "⚠️ Payment received, but the channel was not found.\n\n" f"{CONTACT_TEXT}", disable_web_page_preview=True)
+                bot.send_message(user_id, "⚠️ Payment received, but channel not found.\n\n" + CONTACT_TEXT, disable_web_page_preview=True)
                 return "OK", 200
-
             new_expiry = upsert_subscription(user_id, username, stream, subject, channel_id)
-
-            # Always create invite link
             link = None
             try:
                 invite = bot.create_chat_invite_link(channel_id, expire_date=int(new_expiry.timestamp()), member_limit=1)
                 link = invite.invite_link
             except Exception:
                 link = None
-
-            msg = f"✅ <b>Payment received!</b>\n\nAccess: <b>{subject}</b>\nValid till: <code>{new_expiry}</code>\n"
+            msg = f"✅ Payment received!\n\nAccess: {subject}\nValid till: {new_expiry}\n\n"
             if link:
-                msg += f"Join link: {link}\n\n"
+                msg += f"Join link (single-use): {link}\n\n"
             else:
-                msg += "⚠️ Could not create invite link, contact support.\n\n"
+                msg += "⚠️ Could not generate invite link.\n\n"
             msg += CONTACT_TEXT
             bot.send_message(user_id, msg, disable_web_page_preview=True)
-
         return "OK", 200
-    except Exception:
-        return "ERR", 200
+    except Exception as e:
+        return f"ERR: {e}", 200
 
 @app.post(f"/telegram/{BOT_TOKEN}")
 def telegram_webhook():
@@ -336,7 +338,7 @@ scheduler = BackgroundScheduler()
 def job_send_reminders():
     for user_id, subject, exp in fetch_due_reminders():
         left = max(0, (exp - datetime.now(timezone.utc)).days)
-        bot.send_message(user_id, f"⏳ Reminder: Your <b>{subject}</b> subscription expires in {left} day(s).\nRenew any time.\n\n{CONTACT_TEXT}", disable_web_page_preview=True)
+        bot.send_message(user_id, f"⏳ Reminder: Your {subject} subscription expires in {left} day(s).\n\n{CONTACT_TEXT}", disable_web_page_preview=True)
         mark_reminded(user_id, subject)
 
 def job_expire_and_kick():
