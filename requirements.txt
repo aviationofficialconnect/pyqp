@@ -1,0 +1,5 @@
+pyTelegramBotAPI==4.16.1
+Flask==3.0.3
+razorpay==1.4.2
+APScheduler==3.10.4
+python-dotenv==1.0.1
