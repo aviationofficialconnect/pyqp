@@ -56,7 +56,7 @@ CHANNELS = {
 # Default price for most subjects
 PRICE_INR_DEFAULT = 49
 # Special price for Pilot -> "4 in 1"
-PRICE_INR_4IN1 = 149
+PRICE_INR_4IN1 = 1
 
 DAYS_PER_SUB = 30
 REMINDER_DAYS_BEFORE = 2
@@ -170,7 +170,7 @@ def mark_expired(user_id: int, subject: str):
 # 5) MENUS & HELPERS
 # ==========================
 def get_price(stream: str, subject: str) -> int:
-    # Only Pilot -> "4 in 1" is ₹149; everything else uses default price
+    # Only Pilot -> "4 in 1" is ₹1; everything else uses default price
     if stream == "pilot" and subject == "4 in 1":
         return PRICE_INR_4IN1
     return PRICE_INR_DEFAULT
@@ -205,7 +205,7 @@ FAQ_ITEMS = [
     {
         "id": "validity",
         "q": "What is the validity?",
-        "a": "Each subscription is valid for 30 days. Special pricing: Pilot '4 in 1' is ₹149/month; other subjects are ₹49/month."
+        "a": "Each subscription is valid for 30 days. Special pricing: Pilot '4 in 1' is ₹1/month; other subjects are ₹49/month."
     },
     {
         "id": "renew",
