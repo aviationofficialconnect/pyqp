@@ -101,14 +101,35 @@ def handle_menus(call):
 # ==========================
 # 5) FLASK SERVER FOR WEBHOOK
 # ==========================
+# ==========================
+# 5) FLASK SERVER FOR WEBHOOK
+# ==========================
 app = Flask(__name__)
+
+def force_webhook():
+    """Helper function to guarantee Telegram knows where to send updates."""
+    webhook_url = f"{PUBLIC_BASE_URL}/telegram/{BOT_TOKEN}"
+    try:
+        # Get current webhook status
+        info = bot.get_webhook_info()
+        if info.url != webhook_url:
+            print(f"🔄 Webhook mismatch. Fixing: {info.url} -> {webhook_url}")
+            bot.remove_webhook()
+            bot.set_webhook(url=webhook_url, timeout=60)
+    except Exception as e:
+        print(f"⚠️ Webhook setup warning: {e}")
 
 @app.get("/")
 def home():
-    return "Bot is running!", 200
+    force_webhook()
+    return "Bot is running perfectly!", 200
 
-@app.post(f"/telegram/{BOT_TOKEN}")
-def telegram_webhook():
+@app.post("/telegram/<token>")
+def telegram_webhook(token):
+    # Security check to ensure nobody else is hitting this endpoint
+    if token != BOT_TOKEN:
+        return "Forbidden", 403
+        
     if request.headers.get('content-type') == 'application/json':
         try:
             json_string = request.get_data().decode('utf-8')
@@ -116,10 +137,17 @@ def telegram_webhook():
             bot.process_new_updates([update])
             return "OK", 200
         except Exception as e:
-            print(f"❌ ERROR PROCESSING UPDATE: {e}")
-            return "Error", 500
-    return "Forbidden", 403
+            print(f"❌ Error handling update: {e}")
+            return "Internal Error", 500
+    return "Invalid Request", 400
 
+# ==========================
+# 6) EXECUTION RUNNER
+# ==========================
+if __name__ == "__main__":
+    # We let the Flask web requests handle registration dynamically
+    port = int(os.environ.get("PORT", "8080"))
+    app.run(host="0.0.0.0", port=port, debug=False)
 # ==========================
 # 6) EXECUTION RUNNER
 # ==========================
