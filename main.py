@@ -110,10 +110,14 @@ def home():
 @app.post(f"/telegram/{BOT_TOKEN}")
 def telegram_webhook():
     if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return "OK", 200
+        try:
+            json_string = request.get_data().decode('utf-8')
+            update = telebot.types.Update.de_json(json_string)
+            bot.process_new_updates([update])
+            return "OK", 200
+        except Exception as e:
+            print(f"❌ ERROR PROCESSING UPDATE: {e}")
+            return "Error", 500
     return "Forbidden", 403
 
 # ==========================
