@@ -1,162 +1,181 @@
 import os
-from flask import Flask, request
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-# ==========================
-# 1) CONFIGURATION & ENV
-# ==========================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-PUBLIC_BASE_URL = "https://pyqp.onrender.com"
-
-if not BOT_TOKEN:
-    raise SystemExit("❌ BOT_TOKEN missing. Add it in Render Secrets.")
-
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
-
-# ==========================
-# 2) KEYBOARDS & MENUS
-# ==========================
-def main_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(
-        InlineKeyboardButton("🌐 Visit examairways.com", url="https://examairways.com"),
-        InlineKeyboardButton("📱 Join WhatsApp Channels", callback_query_data="menu_whatsapp"),
-        InlineKeyboardButton("📸 Follow us on Instagram", callback_query_data="menu_instagram")
-    )
-    return kb
-
-def whatsapp_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(
-        InlineKeyboardButton("✈️ Pilot Channel (CPL, ATPL, etc.)", url="https://whatsapp.com/channel/0029Vb7hKkjE50UcPqSkjf0r"),
-        InlineKeyboardButton("🔧 AME Channel", url="https://whatsapp.com/channel/0029Vb6j7KoBKfhv5A0yd70R"),
-        InlineKeyboardButton("🎙️ RTR Channel", url="https://whatsapp.com/channel/0029Vb8adpWEawdnZyLYdk23"),
-        InlineKeyboardButton("⬅️ Back to Main Menu", callback_query_data="menu_main")
-    )
-    return kb
-
-def instagram_menu():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(
-        InlineKeyboardButton("📸 @examairways", url="https://www.instagram.com/examairways/"),
-        InlineKeyboardButton("📝 @dgcaexamquestionpaper", url="https://www.instagram.com/dgcaexamquestionpaper/"),
-        InlineKeyboardButton("⬅️ Back to Main Menu", callback_query_data="menu_main")
-    )
-    return kb
-
-# ==========================
-# 3) TEXT TEMPLATES
-# ==========================
-WELCOME_TEXT = (
-    "👋 <b>Welcome to Exam Airways!</b>\n\n"
-    "Your ultimate destination for aviation exam preparation. On our website, you will find comprehensive study materials and the <b>latest question papers</b> for:\n\n"
-    "• 👨‍✈️ <b>Pilot Exams</b> (CPL, ATPL, RTR, etc.)\n"
-    "• 🔧 <b>AME Modules</b>\n\n"
-    "Click the button below to explore our premium notes and question banks!"
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
 )
 
-WHATSAPP_TEXT = (
-    "📢 <b>Join our WhatsApp Channels!</b>\n\n"
-    "Get access to <b>free materials</b>, instant exam updates, and important alerts directly on your phone. Select your stream below:"
-)
+# Fetch Token from Environment Variable / Secrets
+TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-INSTAGRAM_TEXT = (
-    "📸 <b>Stay connected on Instagram!</b>\n\n"
-    "Follow our official handles for regular updates, exam patterns, and study tips:"
-)
 
-# ==========================
-# 4) BOT HANDLERS
-# ==========================
-@bot.message_handler(commands=["start", "help"])
-def cmd_start(message):
-    bot.send_message(
-        message.chat.id, 
-        WELCOME_TEXT, 
-        reply_markup=main_menu(), 
-        disable_web_page_preview=True
+# --- HELPER FUNCTIONS FOR MENUS ---
+
+def get_footer_text() -> str:
+    return (
+        "\n\n------------------------------------\n"
+        "📩 **If you have any queries, feel free to reach out:**\n"
+        "🌐 **Main Website:** [examairways.com](https://examairways.com/)\n"
+        "📚 **Previous Year Papers & Groups:** [Click Here](https://examairways.com/previous-year-question-paper/)\n"
+        "📧 **Email Support:** examairways@gmail.com"
     )
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("menu_"))
-def handle_menus(call):
-    bot.answer_callback_query(call.id)
-    
-    if call.data == "menu_main":
-        bot.edit_message_text(
-            WELCOME_TEXT, call.message.chat.id, call.message.message_id, 
-            reply_markup=main_menu(), disable_web_page_preview=True
-        )
-    elif call.data == "menu_whatsapp":
-        bot.edit_message_text(
-            WHATSAPP_TEXT, call.message.chat.id, call.message.message_id, 
-            reply_markup=whatsapp_menu(), disable_web_page_preview=True
-        )
-    elif call.data == "menu_instagram":
-        bot.edit_message_text(
-            INSTAGRAM_TEXT, call.message.chat.id, call.message.message_id, 
-            reply_markup=instagram_menu(), disable_web_page_preview=True
-        )
+def get_footer_buttons() -> list[list[InlineKeyboardButton]]:
+    return [
+        [InlineKeyboardButton("🌐 Visit Main Website", url="https://examairways.com/")],
+        [InlineKeyboardButton("📚 Group Details & Previous Year Papers", url="https://examairways.com/previous-year-question-paper/")],
+        [InlineKeyboardButton("📧 Contact Support via Email", url="mailto:examairways@gmail.com")]
+    ]
 
-# ==========================
-# 5) FLASK SERVER FOR WEBHOOK
-# ==========================
-# ==========================
-# 5) FLASK SERVER FOR WEBHOOK
-# ==========================
-app = Flask(__name__)
 
-def force_webhook():
-    """Helper function to guarantee Telegram knows where to send updates."""
-    webhook_url = f"{PUBLIC_BASE_URL}/telegram/{BOT_TOKEN}"
-    try:
-        # Get current webhook status
-        info = bot.get_webhook_info()
-        if info.url != webhook_url:
-            print(f"🔄 Webhook mismatch. Fixing: {info.url} -> {webhook_url}")
-            bot.remove_webhook()
-            bot.set_webhook(url=webhook_url, timeout=60)
-    except Exception as e:
-        print(f"⚠️ Webhook setup warning: {e}")
+# --- HANDLERS ---
 
-@app.get("/")
-def home():
-    force_webhook()
-    return "Bot is running perfectly!", 200
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Initial /start command handler."""
+    text = (
+        "Welcome to **Exam Airways**! ✈️\n\n"
+        "Please select your category to get started:"
+    )
+    keyboard = [
+        [
+            InlineKeyboardButton("Pilot", callback_data="role_pilot"),
+            InlineKeyboardButton("AME (Aircraft Maintenance)", callback_data="role_ame"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-@app.post("/telegram/<token>")
-def telegram_webhook(token):
-    # Security check to ensure nobody else is hitting this endpoint
-    if token != BOT_TOKEN:
-        return "Forbidden", 403
-        
-    if request.headers.get('content-type') == 'application/json':
-        try:
-            json_string = request.get_data().decode('utf-8')
-            update = telebot.types.Update.de_json(json_string)
-            bot.process_new_updates([update])
-            return "OK", 200
-        except Exception as e:
-            print(f"❌ Error handling update: {e}")
-            return "Internal Error", 500
-    return "Invalid Request", 400
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ==========================
-# 6) EXECUTION RUNNER
-# ==========================
+
+async def main_options_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, role: str):
+    """Shows Main Menu options after selecting Pilot or AME."""
+    query = update.callback_query
+    await query.answer()
+
+    role_title = "Pilot" if role == "pilot" else "AME"
+    text = f"Selected Stream: **{role_title}**\n\nChoose an option below:"
+
+    keyboard = [
+        [InlineKeyboardButton("📖 Get Access to Latest Study Materials", callback_data=f"materials_{role}")],
+        [InlineKeyboardButton("💬 Join Free Community", url="https://examairways.com/previous-year-question-paper/")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="start_over")]
+    ]
+    keyboard.extend(get_footer_buttons())
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text + get_footer_text(), reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
+
+
+async def show_premium_groups(update: Update, context: ContextTypes.DEFAULT_TYPE, role: str):
+    """Displays subject/module premium links along with the FAQ option."""
+    query = update.callback_query
+    await query.answer()
+
+    if role == "pilot":
+        text = "🎯 **Premium Groups for Pilot Exams:**\nChoose your subject below to enroll:"
+        keyboard = [
+            [InlineKeyboardButton("Meteorology (Met)", url="https://cosmofeed.com/vig/65ff2831cf68d10013420bf5")],
+            [InlineKeyboardButton("Air Regulations (Reg)", url="https://cosmofeed.com/vig/67bc91903acba90014c0ed18")],
+            [InlineKeyboardButton("Technical General", url="https://cosmofeed.com/vig/67bdc90e2249ac0013e3c0c8")],
+            [InlineKeyboardButton("Air Navigation", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
+            [InlineKeyboardButton("⭐ All-in-One Pilot Bundle", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
+            [InlineKeyboardButton("❓ Frequently Asked Questions (FAQs)", callback_data="show_faqs_pilot")],
+            [InlineKeyboardButton("🔙 Back", callback_data="role_pilot")]
+        ]
+    else:  # AME
+        text = "🛠️ **Premium Groups for AME Modules:**\nChoose your module below to enroll:"
+        keyboard = [
+            [InlineKeyboardButton("Module 3", url="https://cosmofeed.com/vig/68b1e3a410b85b0013ee7000"), InlineKeyboardButton("Module 4", url="https://cosmofeed.com/vig/6885192563dd880013c871ec")],
+            [InlineKeyboardButton("Module 5", url="https://cosmofeed.com/vig/68b1e60d5894b900131b389b"), InlineKeyboardButton("Module 6", url="https://cosmofeed.com/vig/68b1e64f8358bd00136cc2d5")],
+            [InlineKeyboardButton("Module 7", url="https://cosmofeed.com/vig/68b1e687048157001329f0e1"), InlineKeyboardButton("Module 8", url="https://cosmofeed.com/vig/68b1e6ba048157001329f3cc")],
+            [InlineKeyboardButton("Module 9", url="https://cosmofeed.com/vig/68b1e6f110b85b0013eea4c4"), InlineKeyboardButton("Module 10", url="https://cosmofeed.com/vig/68b1e7388358bd00136ccdfb")],
+            [InlineKeyboardButton("Module 11", url="https://cosmofeed.com/vig/68b1e7798358bd00136cd159"), InlineKeyboardButton("Module 12", url="https://cosmofeed.com/vig/68b1e7a9048157001329ffb0")],
+            [InlineKeyboardButton("Module 13", url="https://cosmofeed.com/vig/68b1e7d910b85b0013eeb0cd"), InlineKeyboardButton("Module 14", url="https://cosmofeed.com/vig/68b1e80304815700132a04cd")],
+            [InlineKeyboardButton("Module 15", url="https://cosmofeed.com/vig/68b1e83410b85b0013eeb56a"), InlineKeyboardButton("Module 17", url="https://cosmofeed.com/vig/68b1e85b04815700132a096c")],
+            [InlineKeyboardButton("❓ Frequently Asked Questions (FAQs)", callback_data="show_faqs_ame")],
+            [InlineKeyboardButton("🔙 Back", callback_data="role_ame")]
+        ]
+
+    keyboard.extend(get_footer_buttons())
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text + get_footer_text(), reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
+
+
+async def show_faqs(update: Update, context: ContextTypes.DEFAULT_TYPE, prev_role: str):
+    """Displays full FAQ section with cleaned up grammar."""
+    query = update.callback_query
+    await query.answer()
+
+    faq_text = (
+        "❓ **Frequently Asked Questions (FAQs)**\n\n"
+        "📌 **How do I get the study material?**\n"
+        "Click on 'Buy Now', select the subject, and complete the payment. Upon completion, you will instantly gain access to the private Telegram channel.\n\n"
+        "🔒 **Is the payment secure?**\n"
+        "Yes, all payments are processed through 100% secure payment gateways with SSL encryption.\n\n"
+        "📦 **What is included in the subscription?**\n"
+        "You get Previous Year Papers, Chapter-wise Question Banks, and Mock Test Papers. Content is updated regularly.\n\n"
+        "📚 **Can I access multiple subjects?**\n"
+        "Yes, you can subscribe to multiple subjects or modules simultaneously.\n\n"
+        "💳 **Refund Policy**\n"
+        "Since this is instant-access digital content, refunds are not possible once access is granted.\n\n"
+        "🤝 **How does reselling work?**\n"
+        "Currently, reselling is active for the **Pilot 4-in-1 Bundle**. Click 'Resell' on the payment page, enter your phone number, and generate a referral link. You earn a 10% commission on every sale made via your link!\n\n"
+        "🚀 **Will reselling be available for other subjects?**\n"
+        "Yes! We plan to expand the referral program to all Pilot subjects and AME modules soon.\n\n"
+        "💰 **How do I receive commissions?**\n"
+        "Your earnings (10% of the bundle fee) are directly credited to your Cosmofeed registered account/UPI after a successful buyer transaction.\n\n"
+        "📩 **Contact & Support:** examairways@gmail.com\n"
+        "📸 **Follow us on Instagram**\n\n"
+        "*This is DGCA previous year Question paper*\n"
+        "© 2026 examairways.com • Built with GeneratePress"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("🔙 Back to Group Links", callback_data=f"materials_{prev_role}")],
+        [InlineKeyboardButton("🏠 Back to Start", callback_data="start_over")]
+    ]
+    keyboard.extend(get_footer_buttons())
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(faq_text + get_footer_text(), reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
+
+
+async def button_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Router for all inline query button clicks."""
+    query = update.callback_query
+    data = query.data
+
+    if data == "start_over":
+        await start(update, context)
+    elif data in ["role_pilot", "role_ame"]:
+        role = "pilot" if data == "role_pilot" else "ame"
+        await main_options_menu(update, context, role)
+    elif data in ["materials_pilot", "materials_ame"]:
+        role = "pilot" if data == "materials_pilot" else "ame"
+        await show_premium_groups(update, context, role)
+    elif data in ["show_faqs_pilot", "show_faqs_ame"]:
+        role = "pilot" if data == "show_faqs_pilot" else "ame"
+        await show_faqs(update, context, role)
+
+
+def main():
+    if not TOKEN:
+        raise ValueError("Missing TELEGRAM_BOT_TOKEN environment variable! Set it in your secrets.")
+
+    app = Application.builder().token(TOKEN).build()
+
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_router))
+
+    print("Bot is running...")
+    app.run_polling()
+
+
 if __name__ == "__main__":
-    # We let the Flask web requests handle registration dynamically
-    port = int(os.environ.get("PORT", "8080"))
-    app.run(host="0.0.0.0", port=port, debug=False)
-# ==========================
-# 6) EXECUTION RUNNER
-# ==========================
-if __name__ == "__main__":
-    try:
-        bot.remove_webhook()
-        bot.set_webhook(url=f"{PUBLIC_BASE_URL}/telegram/{BOT_TOKEN}")
-    except Exception as e:
-        print(f"Error setting webhook: {e}")
-        
-    port = int(os.environ.get("PORT", "8080"))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    main()
