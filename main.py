@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# 1. Web server to satisfy Render's port check and keep bot alive 24/7
+# 1. Flask server to satisfy Render's port binding check
 app = Flask(__name__)
 
 @app.route("/")
@@ -21,14 +21,14 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
 
-# Enable logging
+# Logging setup
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# Footer buttons always shown at the bottom
+# Footer buttons attached across the bot
 def get_footer_buttons():
     return [
         [InlineKeyboardButton("🌐 Main Website", url="https://examairways.com/")],
@@ -72,7 +72,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
     data = query.data
 
-    # Step 1: Stream Selection
+    # Stream Selection
     if data in ["stream_ame", "stream_pilot"]:
         stream = "AME" if data == "stream_ame" else "PILOT"
         context.user_data["stream"] = stream
@@ -90,7 +90,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 2: Coming Soon Handler
+    # Coming Soon
     elif data == "coming_soon":
         keyboard = [
             [InlineKeyboardButton("🇮🇳 Select DGCA Instead", callback_data="authority_dgca")],
@@ -103,7 +103,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 3: DGCA Main Menu
+    # DGCA Options Menu
     elif data == "authority_dgca":
         stream = context.user_data.get("stream", "PILOT")
 
@@ -125,7 +125,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 4A: Raw Materials
+    # Raw Materials & Groups
     elif data == "opt_raw_materials":
         stream = context.user_data.get("stream", "PILOT")
 
@@ -164,7 +164,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 4B: Pilot E-Books Subject Selection
+    # Pilot E-Books Categories
     elif data == "opt_ebooks_menu":
         keyboard = [
             [InlineKeyboardButton("⚙️ Technical General", callback_data="eb_tech_gen")],
@@ -181,19 +181,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 4C: Shortened Button Titles (Prevents Telegram Crash)
+    # Cleaned & Validated E-Book Links
     elif data.startswith("eb_"):
         keyboard = []
         if data == "eb_tech_gen":
             keyboard = [
                 [InlineKeyboardButton("Tech Gen Regular Session 01 (2026)", url="https://superprofile.bio/vp/technical-general-regular-seasons-1-2026")],
-                [InlineKeyboardButton("Tech Gen Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-regular-session-02-2026-")],
-                [InlineKeyboardButton("Tech Gen OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-olode-session-02-2026-")],
+                [InlineKeyboardButton("Tech Gen Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-regular-session-02-2026")],
+                [InlineKeyboardButton("Tech Gen OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-olode-session-02-2026")],
             ]
         elif data == "eb_met":
             keyboard = [
                 [InlineKeyboardButton("Aviation Met Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-aviation-metrology-regular-session-01-2026")],
-                [InlineKeyboardButton("Meteorology Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-regular-session-02-2026-")],
+                [InlineKeyboardButton("Meteorology Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-regular-session-02-2026")],
                 [InlineKeyboardButton("Meteorology OLODE Session 01 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-01-2026")],
                 [InlineKeyboardButton("Meteorology OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-02-2026")],
                 [InlineKeyboardButton("Meteorology OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-03-2026")],
@@ -203,8 +203,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif data == "eb_nav":
             keyboard = [
                 [InlineKeyboardButton("Air Nav Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-air-navigation-regular-session-01-2026")],
-                [InlineKeyboardButton("Air Nav Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-regular-session-02-2026-")],
-                [InlineKeyboardButton("Air Nav Questions – 22 Jan OLODE 01", url="https://superprofile.bio/vp/dgca-navigation-questions-–-22-january-2026---olode-session-01-2026")],
+                [InlineKeyboardButton("Air Nav Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-regular-session-02-2026")],
+                [InlineKeyboardButton("Air Nav Questions – 22 Jan OLODE 01", url="https://superprofile.bio/vp/dgca-navigation-questions---22-january-2026---olode-session-01-2026")],
                 [InlineKeyboardButton("Air Nav OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-02-2026")],
                 [InlineKeyboardButton("Air Nav OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-03-2026-812")],
                 [InlineKeyboardButton("Air Nav OLODE Session 04 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-04-2026")],
@@ -213,7 +213,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         elif data == "eb_reg":
             keyboard = [
                 [InlineKeyboardButton("Air Reg Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-air-regulation-regular-session-01-2026")],
-                [InlineKeyboardButton("Air Reg Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-regular-session-02-2026-")],
+                [InlineKeyboardButton("Air Reg Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-regular-session-02-2026")],
                 [InlineKeyboardButton("Air Reg OLODE Session 01 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-olode-session-01-2026")],
                 [InlineKeyboardButton("Air Reg OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-02-2026")],
                 [InlineKeyboardButton("Air Reg OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-03-2026")],
@@ -263,7 +263,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # FAQs Section
+    # FAQs Menu
     elif data == "show_faqs":
         keyboard = [
             [InlineKeyboardButton("📩 How do I get study material?", callback_data="faq_1")],
@@ -317,7 +317,7 @@ def main():
     if not BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-    # Start Flask Web Server on background thread so Render detects a running port
+    # Threaded Flask server for Render port checks
     Thread(target=run_flask, daemon=True).start()
 
     application = Application.builder().token(BOT_TOKEN).build()
