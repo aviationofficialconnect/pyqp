@@ -13,42 +13,32 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
-# Fetch Bot Token securely from environment variables
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-
-# Persistent Footer Buttons (Always shown at the bottom)
+# Always-present footer buttons
 def get_footer_buttons():
     return [
+        [InlineKeyboardButton("🌐 Main Website", url="https://examairways.com/")],
         [
             InlineKeyboardButton(
-                "🌐 Main Website", url="https://examairways.com/"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                "📢 WhatsApp Channel",
+                "📢 Join WhatsApp Channel",
                 url="https://whatsapp.com/channel/0029VbDBVyXJP212QuSRXb3f",
             )
         ],
-        [
-            InlineKeyboardButton(
-                "✉️ Support Email", url="mailto:examairways@gmail.com"
-            )
-        ],
+        [InlineKeyboardButton("✉️ Email Us", url="mailto:examairways@gmail.com")],
+        [InlineKeyboardButton("❓ FAQs & Support", callback_data="show_faqs")],
     ]
 
 
-# /start Command Handler
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     keyboard = [
         [
             InlineKeyboardButton("🛠️ AME", callback_data="stream_ame"),
             InlineKeyboardButton("✈️ PILOT", callback_data="stream_pilot"),
         ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    ] + get_footer_buttons()
 
+    reply_markup = InlineKeyboardMarkup(keyboard)
     welcome_text = (
         "WELCOME TO EXAMAIRWAYS.COM 🛫\n\n"
         "Please select your stream to get started:"
@@ -64,172 +54,248 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-# Callback Handler for Button Clicks
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     data = query.data
 
-    # --- STEP 1: Stream Selection (AME or Pilot) ---
+    # Step 1: Stream Selection
     if data in ["stream_ame", "stream_pilot"]:
         stream = "AME" if data == "stream_ame" else "PILOT"
-        context.user_data["stream"] = stream  # Save choice in context
+        context.user_data["stream"] = stream
 
         keyboard = [
             [InlineKeyboardButton("🇮🇳 DGCA", callback_data="authority_dgca")],
-            [
-                InlineKeyboardButton(
-                    "🇪🇺 EASA (Coming Soon)", callback_data="coming_soon"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    "🇺🇸 FAA (Coming Soon)", callback_data="coming_soon"
-                )
-            ],
+            [InlineKeyboardButton("🇪🇺 EASA (Coming Soon)", callback_data="coming_soon")],
+            [InlineKeyboardButton("🇺🇸 FAA (Coming Soon)", callback_data="coming_soon")],
             [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        ] + get_footer_buttons()
 
         await query.edit_message_text(
             text=f"Selected Stream: **{stream}**\n\nSelect the Aviation Authority:",
-            reply_markup=reply_markup,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # --- STEP 2: Handle 'Coming Soon' Buttons ---
+    # Step 2: Coming Soon Handler
     elif data == "coming_soon":
-        stream = context.user_data.get("stream", "Your Stream")
         keyboard = [
             [InlineKeyboardButton("🇮🇳 Select DGCA Instead", callback_data="authority_dgca")],
             [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")],
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        ] + get_footer_buttons()
+
         await query.edit_message_text(
-            text=f"🚀 **Coming Soon!**\n\nThis authority section is currently under development. Please check back later or choose DGCA.",
-            reply_markup=reply_markup,
+            text="🚀 **Coming Soon!**\n\nThis authority section is under development. Please choose DGCA.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # --- STEP 3: DGCA Selected -> Show Options ---
+    # Step 3: DGCA Selected -> Main Menu
     elif data == "authority_dgca":
         stream = context.user_data.get("stream", "PILOT")
 
         keyboard = [
-            [
-                InlineKeyboardButton(
-                    "📄 Raw PYQ Papers & Study Materials",
-                    callback_data="opt_pyq",
-                )
-            ]
+            [InlineKeyboardButton("📄 Access Raw Materials & PYQs", callback_data="opt_raw_materials")]
         ]
 
-        # Show Video Lectures and E-Books ONLY for PILOT
         if stream == "PILOT":
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        "🎥 Course Video Lectures with Study Materials",
-                        callback_data="opt_videos",
-                    )
-                ]
-            )
-            keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        "📚 E-Books",
-                        callback_data="opt_ebooks",
-                    )
-                ]
-            )
+            keyboard.append([InlineKeyboardButton("🎥 Course Video Lectures", callback_data="opt_videos")])
+            keyboard.append([InlineKeyboardButton("📚 E-Books", callback_data="opt_ebooks_menu")])
 
-        # Always include Just Exploring & Back button
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    "🔍 Just Exploring",
-                    callback_data="opt_exploring",
-                )
-            ]
-        )
+        keyboard.append([InlineKeyboardButton("🔍 Just Exploring", callback_data="opt_exploring")])
         keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")])
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard.extend(get_footer_buttons())
 
         await query.edit_message_text(
             text=f"Selected: **{stream} > DGCA**\n\nWhat are you looking for?",
-            reply_markup=reply_markup,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # --- STEP 4: Option Deliveries ---
-    elif data in ["opt_pyq", "opt_exploring"]:
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "📖 Access Previous Year Question Papers",
-                    url="https://examairways.com/previous-year-question-paper/",
-                )
-            ]
-        ] + get_footer_buttons()
+    # Step 4A: Raw Materials Selected (Split by AME / PILOT)
+    elif data == "opt_raw_materials":
+        stream = context.user_data.get("stream", "PILOT")
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        if stream == "PILOT":
+            keyboard = [
+                [InlineKeyboardButton("🌤️ Met", url="https://cosmofeed.com/vig/65ff2831cf68d10013420bf5")],
+                [InlineKeyboardButton("📜 Reg", url="https://cosmofeed.com/vig/67bc91903acba90014c0ed18")],
+                [InlineKeyboardButton("⚙️ Tech Gen", url="https://cosmofeed.com/vig/67bdc90e2249ac0013e3c0c8")],
+                [InlineKeyboardButton("🧭 Nav", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
+                [InlineKeyboardButton("🌟 All in One Bundle", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
+            ]
+        else:  # AME
+            keyboard = [
+                [InlineKeyboardButton("Module 3", url="https://cosmofeed.com/vig/68b1e3a410b85b0013ee7000")],
+                [InlineKeyboardButton("Module 4", url="https://cosmofeed.com/vig/6885192563dd880013c871ec")],
+                [InlineKeyboardButton("Module 5", url="https://cosmofeed.com/vig/68b1e60d5894b900131b389b")],
+                [InlineKeyboardButton("Module 6", url="https://cosmofeed.com/vig/68b1e64f8358bd00136cc2d5")],
+                [InlineKeyboardButton("Module 7", url="https://cosmofeed.com/vig/68b1e687048157001329f0e1")],
+                [InlineKeyboardButton("Module 8", url="https://cosmofeed.com/vig/68b1e6ba048157001329f3cc")],
+                [InlineKeyboardButton("Module 9", url="https://cosmofeed.com/vig/68b1e6f110b85b0013eea4c4")],
+                [InlineKeyboardButton("Module 10", url="https://cosmofeed.com/vig/68b1e7388358bd00136ccdfb")],
+                [InlineKeyboardButton("Module 11", url="https://cosmofeed.com/vig/68b1e7798358bd00136cd159")],
+                [InlineKeyboardButton("Module 12", url="https://cosmofeed.com/vig/68b1e7a9048157001329ffb0")],
+                [InlineKeyboardButton("Module 13", url="https://cosmofeed.com/vig/68b1e7d910b85b0013eeb0cd")],
+                [InlineKeyboardButton("Module 14", url="https://cosmofeed.com/vig/68b1e80304815700132a04cd")],
+                [InlineKeyboardButton("Module 15", url="https://cosmofeed.com/vig/68b1e83410b85b0013eeb56a")],
+                [InlineKeyboardButton("Module 17", url="https://cosmofeed.com/vig/68b1e85b04815700132a096c")],
+            ]
+
+        keyboard.append([InlineKeyboardButton("🔙 Back to DGCA Menu", callback_data="authority_dgca")])
+        keyboard.extend(get_footer_buttons())
 
         await query.edit_message_text(
-            text=(
-                "Here is your direct access link:\n\n"
-                "------------------------------------\n"
-                "❓ *If you have any query, feel free to visit our main website or reach out via email below.*"
-            ),
-            reply_markup=reply_markup,
+            text=f"📚 **{stream} Premium Raw Study Materials & Groups:**\nSelect a subject/module below to get instant access:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
+    # Step 4B: Pilot E-Books Subject Selection Menu
+    elif data == "opt_ebooks_menu":
+        keyboard = [
+            [InlineKeyboardButton("⚙️ Technical General", callback_data="eb_tech_gen")],
+            [InlineKeyboardButton("🌤️ Aviation Meteorology", callback_data="eb_met")],
+            [InlineKeyboardButton("🧭 Air Navigation", callback_data="eb_nav")],
+            [InlineKeyboardButton("📜 Air Regulation", callback_data="eb_reg")],
+            [InlineKeyboardButton("📻 RTR 1", callback_data="eb_rtr")],
+            [InlineKeyboardButton("🔙 Back to DGCA Menu", callback_data="authority_dgca")],
+        ] + get_footer_buttons()
+
+        await query.edit_message_text(
+            text="📚 **Pilot E-Books & Question Papers**\n\nPlease select a subject to view available e-books:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+        )
+
+    # E-Book Subject Pages
+    elif data.startswith("eb_"):
+        keyboard = []
+        if data == "eb_tech_gen":
+            keyboard = [
+                [InlineKeyboardButton("Technical General Regular Session 1 2026", url="https://superprofile.bio/vp/technical-general-regular-seasons-1-2026")],
+                [InlineKeyboardButton("Tech Gen Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-regular-session-02-2026-")],
+                [InlineKeyboardButton("Tech Gen OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-olode-session-02-2026-")],
+            ]
+        elif data == "eb_met":
+            keyboard = [
+                [InlineKeyboardButton("Aviation Metrology Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-aviation-metrology-regular-session-01-2026")],
+                [InlineKeyboardButton("Meteorology Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-regular-session-02-2026-")],
+                [InlineKeyboardButton("Meteorology OLODE Session 01 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-01-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-02-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-03-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-04-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-05-2026")],
+            ]
+        elif data == "eb_nav":
+            keyboard = [
+                [InlineKeyboardButton("Air Navigation Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-air-navigation-regular-session-01-2026")],
+                [InlineKeyboardButton("Air Navigation Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-regular-session-02-2026-")],
+                [InlineKeyboardButton("Navigation Questions – 22 Jan 2026 OLODE 01", url="https://superprofile.bio/vp/dgca-navigation-questions-–-22-january-2026---olode-session-01-2026")],
+                [InlineKeyboardButton("Air Navigation OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-02-2026")],
+                [InlineKeyboardButton("Air Navigation OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-03-2026-812")],
+                [InlineKeyboardButton("Air Navigation OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-04-2026")],
+                [InlineKeyboardButton("Air Navigation OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-05-2026")],
+            ]
+        elif data == "eb_reg":
+            keyboard = [
+                [InlineKeyboardButton("Air Regulation Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-air-regulation-regular-session-01-2026")],
+                [InlineKeyboardButton("Air Regulation Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-regular-session-02-2026-")],
+                [InlineKeyboardButton("Air Regulation OLODE Session 01 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-olode-session-01-2026")],
+                [InlineKeyboardButton("Air Regulations OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-02-2026")],
+                [InlineKeyboardButton("Air Regulations OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-03-2026")],
+                [InlineKeyboardButton("Air Regulations OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-04-2026")],
+                [InlineKeyboardButton("Air Regulations OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-05-2026")],
+            ]
+        elif data == "eb_rtr":
+            keyboard = [
+                [InlineKeyboardButton("RTR 1 Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-regular-session-02-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-03-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-04-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-05-2026")],
+            ]
+
+        keyboard.append([InlineKeyboardButton("🔙 Back to E-Book Subjects", callback_data="opt_ebooks_menu")])
+        keyboard.extend(get_footer_buttons())
+
+        await query.edit_message_text(
+            text="📖 **Select your desired paper / e-book to access:**",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+        )
+
+    # Videos / ATPL Course
     elif data == "opt_videos":
         keyboard = [
-            [
-                InlineKeyboardButton(
-                    "🎓 Pilot ATPL Course & Video Lectures",
-                    url="https://examairways.com/2215-2/",
-                )
-            ]
+            [InlineKeyboardButton("🎓 Pilot ATPL Course & Video Lectures", url="https://examairways.com/2215-2/")],
+            [InlineKeyboardButton("🔙 Back to DGCA Menu", callback_data="authority_dgca")],
         ] + get_footer_buttons()
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await query.edit_message_text(
-            text=(
-                "Here is your ATPL Course & Video Lecture access link:\n\n"
-                "------------------------------------\n"
-                "❓ *If you have any query, feel free to visit our main website or reach out via email below.*"
-            ),
-            reply_markup=reply_markup,
+            text="Here is your ATPL Course & Video Lecture access link:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    elif data == "opt_ebooks":
+    # Just Exploring Option
+    elif data == "opt_exploring":
         keyboard = [
-            [
-                InlineKeyboardButton(
-                    "📚 Access Pilot E-Books",
-                    url="https://examairways.com/2173-2/",
-                )
-            ]
+            [InlineKeyboardButton("📖 Previous Year Question Papers", url="https://examairways.com/previous-year-question-paper/")],
+            [InlineKeyboardButton("🔙 Back to DGCA Menu", callback_data="authority_dgca")],
         ] + get_footer_buttons()
 
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await query.edit_message_text(
-            text=(
-                "Here is your E-Books access link:\n\n"
-                "------------------------------------\n"
-                "❓ *If you have any query, feel free to visit our main website or reach out via email below.*"
-            ),
-            reply_markup=reply_markup,
+            text="Feel free to explore our collection of Previous Year Question Papers below:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # Restart flow
+    # Step 5: FAQs Section & Details
+    elif data == "show_faqs":
+        keyboard = [
+            [InlineKeyboardButton("📩 How do I get study material?", callback_data="faq_1")],
+            [InlineKeyboardButton("🔒 Is payment secure?", callback_data="faq_2")],
+            [InlineKeyboardButton("📦 What is included in subscription?", callback_data="faq_3")],
+            [InlineKeyboardButton("📚 Can I access multiple subjects?", callback_data="faq_4")],
+            [InlineKeyboardButton("❌ Refund Policy", callback_data="faq_5")],
+            [InlineKeyboardButton("💸 How does reselling work?", callback_data="faq_6")],
+            [InlineKeyboardButton("🌐 Reselling for other subjects?", callback_data="faq_7")],
+            [InlineKeyboardButton("💰 How do I receive commission?", callback_data="faq_8")],
+            [InlineKeyboardButton("📞 How to contact support?", callback_data="faq_9")],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")],
+        ] + get_footer_buttons()
+
+        await query.edit_message_text(
+            text="❓ **Frequently Asked Questions (FAQs)**\nSelect a topic below to read details:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+        )
+
+    elif data.startswith("faq_"):
+        faq_texts = {
+            "faq_1": "📩 **How do I get the study material?**\n\nClick on Buy Now, select the subject, and make the payment. After payment, you’ll get secure Telegram channel access.",
+            "faq_2": "🔒 **Is the payment secure?**\n\nYes, all payments are processed via 100% secure gateways with SSL encryption.",
+            "faq_3": "📦 **What is included in the subscription?**\n\nYou’ll get Previous Year Papers, Chapter-wise Question Banks, and Mock Test Papers. Content is updated regularly.",
+            "faq_4": "📚 **Can I access multiple subjects?**\n\nYes, you can subscribe to more than one subject/module at the same time.",
+            "faq_5": "❌ **Refund Policy**\n\nSince this is digital content with instant access, refunds are not possible once material is delivered.",
+            "faq_6": "💸 **How does reselling work?**\n\nRight now, only the Pilot 4-in-1 Bundle has reselling enabled. On its page, click Resell, enter your mobile number, and generate a referral link. You’ll get 10% commission when someone buys via your link.",
+            "faq_7": "🌐 **Will reselling be available for other subjects?**\n\nYes, we plan to expand the referral program to all Pilot subjects and AME modules soon. For now, it’s limited to the Pilot 4-in-1 Bundle.",
+            "faq_8": "💰 **How do I receive commission?**\n\nYour earnings (10% of the bundle fee) are credited to your Cosmofeed registered account/UPI after successful payment by the buyer.",
+            "faq_9": "📞 **How can I contact you?**\n\nEmail us anytime at: examairways@gmail.com",
+        }
+
+        ans = faq_texts.get(data, "FAQ details not found.")
+        keyboard = [
+            [InlineKeyboardButton("🔙 Back to FAQs List", callback_data="show_faqs")],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")],
+        ] + get_footer_buttons()
+
+        await query.edit_message_text(
+            text=f"{ans}",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+        )
+
     elif data == "restart":
         await start(update, context)
 
@@ -239,12 +305,8 @@ def main():
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
     application = Application.builder().token(BOT_TOKEN).build()
-
-    # Handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
-
-    # Start polling
     application.run_polling()
 
 
