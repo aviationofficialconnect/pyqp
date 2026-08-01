@@ -1,143 +1,110 @@
 import os
-from telebot import TeleBot, types
-
-# Fetch Token from Render Environment Secrets
-TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-bot = TeleBot(TOKEN)
-
-# --- HELPER FOOTER ---
-FOOTER_TEXT = (
-    "\n\n------------------------------------\n"
-    "📩 **If you have any queries, feel free to reach out:**\n"
-    "🌐 **Main Website:** [examairways.com](https://examairways.com/)\n"
-    "📚 **Previous Year Papers & Groups:** [Click Here](https://examairways.com/previous-year-question-paper/)\n"
-    "📧 **Email Support:** examairways@gmail.com"
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
 )
 
-def add_footer_buttons(markup):
-    markup.add(types.InlineKeyboardButton("🌐 Visit Main Website", url="https://examairways.com/"))
-    markup.add(types.InlineKeyboardButton("📚 Group Details & Previous Year Papers", url="https://examairways.com/previous-year-question-paper/"))
-    markup.add(types.InlineKeyboardButton("📧 Contact Support via Email", url="mailto:examairways@gmail.com"))
-    return markup
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 
+# Fetch Bot Token securely from environment variables
+BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# --- START COMMAND ---
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    markup = types.InlineKeyboardMarkup()
-    btn_pilot = types.InlineKeyboardButton("Pilot", callback_data="role_pilot")
-    btn_ame = types.InlineKeyboardButton("AME (Aircraft Maintenance)", callback_data="role_ame")
-    markup.row(btn_pilot, btn_ame)
+# Common persistent footer buttons (Always shown at the bottom)
+def get_footer_keyboard():
+    return [
+        [
+            InlineKeyboardButton(
+                "🌐 Main Website", url="https://examairways.com/"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "📢 Join WhatsApp Channel",
+                url="https://whatsapp.com/channel/0029VbDBVyXJP212QuSRXb3f",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "✉️ Support Email", url="mailto:examairways@gmail.com"
+            )
+        ],
+    ]
+
+# /start Command Handler
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [
+        [
+            InlineKeyboardButton("🛠️ AME", callback_data="category_ame"),
+            InlineKeyboardButton("✈️ Pilot", callback_data="category_pilot"),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    welcome_text = (
+        "Welcome to **ExamAirways**! 🛫\n\n"
+        "Please select your course stream to get started:"
+    )
     
-    bot.send_message(
-        message.chat.id,
-        "Welcome to **Exam Airways**! ✈️\n\nPlease select your category to get started:",
-        parse_mode="Markdown",
-        reply_markup=markup
+    await update.message.reply_text(
+        welcome_text, reply_markup=reply_markup, parse_mode="Markdown"
     )
 
+# Callback Handler for Category Selection (AME or Pilot)
+async def category_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
 
-# --- CALLBACK ROUTER ---
-@bot.callback_query_handler(func=lambda call: True)
-def handle_query(call):
-    chat_id = call.message.chat.id
-    message_id = call.message.message_id
+    selected_category = "AME" if query.data == "category_ame" else "Pilot"
 
-    if call.data == "start_over":
-        markup = types.InlineKeyboardMarkup()
-        markup.row(
-            types.InlineKeyboardButton("Pilot", callback_data="role_pilot"),
-            types.InlineKeyboardButton("AME (Aircraft Maintenance)", callback_data="role_ame")
-        )
-        bot.edit_message_text(
-            "Welcome to **Exam Airways**! ✈️\n\nPlease select your category to get started:",
-            chat_id, message_id, parse_mode="Markdown", reply_markup=markup
-        )
+    # Category-specific options + Footer buttons
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                "📚 Get Access to Latest Study Materials",
+                url="https://examairways.com/",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                "💬 Join Free WhatsApp Community",
+                url="https://whatsapp.com/channel/0029VbDBVyXJP212QuSRXb3f",
+            )
+        ],
+    ] + get_footer_keyboard()
 
-    elif call.data in ["role_pilot", "role_ame"]:
-        role = "pilot" if call.data == "role_pilot" else "ame"
-        role_title = "Pilot" if role == "pilot" else "AME"
-        
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("📖 Get Access to Latest Study Materials", callback_data=f"materials_{role}"))
-        markup.add(types.InlineKeyboardButton("💬 Join Free Community", url="https://examairways.com/previous-year-question-paper/"))
-        markup.add(types.InlineKeyboardButton("🔙 Back to Main Menu", callback_data="start_over"))
-        markup = add_footer_buttons(markup)
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-        bot.edit_message_text(
-            f"Selected Stream: **{role_title}**\n\nChoose an option below:" + FOOTER_TEXT,
-            chat_id, message_id, parse_mode="Markdown", reply_markup=markup, disable_web_page_preview=True
-        )
+    message_text = (
+        f"You selected: **{selected_category}**\n\n"
+        "Choose an option below to access study resources or connect with us.\n\n"
+        "------------------------------------\n"
+        "❓ **If you have any queries, feel free to visit our main website or reach out via email below.**"
+    )
 
-    elif call.data == "materials_pilot":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("Meteorology (Met)", url="https://cosmofeed.com/vig/65ff2831cf68d10013420bf5"))
-        markup.add(types.InlineKeyboardButton("Air Regulations (Reg)", url="https://cosmofeed.com/vig/67bc91903acba90014c0ed18"))
-        markup.add(types.InlineKeyboardButton("Technical General", url="https://cosmofeed.com/vig/67bdc90e2249ac0013e3c0c8"))
-        markup.add(types.InlineKeyboardButton("Air Navigation", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743"))
-        markup.add(types.InlineKeyboardButton("⭐ All-in-One Pilot Bundle", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743"))
-        markup.add(types.InlineKeyboardButton("❓ Frequently Asked Questions (FAQs)", callback_data="show_faqs_pilot"))
-        markup.add(types.InlineKeyboardButton("🔙 Back", callback_data="role_pilot"))
-        markup = add_footer_buttons(markup)
+    await query.edit_message_text(
+        text=message_text, reply_markup=reply_markup, parse_mode="Markdown"
+    )
 
-        bot.edit_message_text(
-            "🎯 **Premium Groups for Pilot Exams:**\nChoose your subject below to enroll:" + FOOTER_TEXT,
-            chat_id, message_id, parse_mode="Markdown", reply_markup=markup, disable_web_page_preview=True
-        )
+def main():
+    if not BOT_TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-    elif call.data == "materials_ame":
-        markup = types.InlineKeyboardMarkup()
-        markup.row(types.InlineKeyboardButton("Module 3", url="https://cosmofeed.com/vig/68b1e3a410b85b0013ee7000"), types.InlineKeyboardButton("Module 4", url="https://cosmofeed.com/vig/6885192563dd880013c871ec"))
-        markup.row(types.InlineKeyboardButton("Module 5", url="https://cosmofeed.com/vig/68b1e60d5894b900131b389b"), types.InlineKeyboardButton("Module 6", url="https://cosmofeed.com/vig/68b1e64f8358bd00136cc2d5"))
-        markup.row(types.InlineKeyboardButton("Module 7", url="https://cosmofeed.com/vig/68b1e687048157001329f0e1"), types.InlineKeyboardButton("Module 8", url="https://cosmofeed.com/vig/68b1e6ba048157001329f3cc"))
-        markup.row(types.InlineKeyboardButton("Module 9", url="https://cosmofeed.com/vig/68b1e6f110b85b0013eea4c4"), types.InlineKeyboardButton("Module 10", url="https://cosmofeed.com/vig/68b1e7388358bd00136ccdfb"))
-        markup.row(types.InlineKeyboardButton("Module 11", url="https://cosmofeed.com/vig/68b1e7798358bd00136cd159"), types.InlineKeyboardButton("Module 12", url="https://cosmofeed.com/vig/68b1e7a9048157001329ffb0"))
-        markup.row(types.InlineKeyboardButton("Module 13", url="https://cosmofeed.com/vig/68b1e7d910b85b0013eeb0cd"), types.InlineKeyboardButton("Module 14", url="https://cosmofeed.com/vig/68b1e80304815700132a04cd"))
-        markup.row(types.InlineKeyboardButton("Module 15", url="https://cosmofeed.com/vig/68b1e83410b85b0013eeb56a"), types.InlineKeyboardButton("Module 17", url="https://cosmofeed.com/vig/68b1e85b04815700132a096c"))
-        markup.add(types.InlineKeyboardButton("❓ Frequently Asked Questions (FAQs)", callback_data="show_faqs_ame"))
-        markup.add(types.InlineKeyboardButton("🔙 Back", callback_data="role_ame"))
-        markup = add_footer_buttons(markup)
+    # Create the Application
+    application = Application.builder().token(BOT_TOKEN).build()
 
-        bot.edit_message_text(
-            "🛠️ **Premium Groups for AME Modules:**\nChoose your module below to enroll:" + FOOTER_TEXT,
-            chat_id, message_id, parse_mode="Markdown", reply_markup=markup, disable_web_page_preview=True
-        )
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(category_handler, pattern="^category_"))
 
-    elif call.data in ["show_faqs_pilot", "show_faqs_ame"]:
-        prev_role = "pilot" if call.data == "show_faqs_pilot" else "ame"
-        faq_text = (
-            "❓ **Frequently Asked Questions (FAQs)**\n\n"
-            "📌 **How do I get the study material?**\n"
-            "Click on 'Buy Now', select the subject, and complete the payment. Upon completion, you will instantly gain access to the private Telegram channel.\n\n"
-            "🔒 **Is the payment secure?**\n"
-            "Yes, all payments are processed through 100% secure payment gateways with SSL encryption.\n\n"
-            "📦 **What is included in the subscription?**\n"
-            "You get Previous Year Papers, Chapter-wise Question Banks, and Mock Test Papers. Content is updated regularly.\n\n"
-            "📚 **Can I access multiple subjects?**\n"
-            "Yes, you can subscribe to multiple subjects or modules simultaneously.\n\n"
-            "💳 **Refund Policy**\n"
-            "Since this is instant-access digital content, refunds are not possible once access is granted.\n\n"
-            "🤝 **How does reselling work?**\n"
-            "Currently, reselling is active for the **Pilot 4-in-1 Bundle**. Click 'Resell' on the payment page, enter your phone number, and generate a referral link. You earn a 10% commission on every sale made via your link!\n\n"
-            "🚀 **Will reselling be available for other subjects?**\n"
-            "Yes! We plan to expand the referral program to all Pilot subjects and AME modules soon.\n\n"
-            "💰 **How do I receive commissions?**\n"
-            "Your earnings (10% of the bundle fee) are directly credited to your Cosmofeed registered account/UPI after a successful buyer transaction.\n\n"
-            "📩 **Contact & Support:** examairways@gmail.com\n"
-            "📸 **Follow us on Instagram**\n\n"
-            "*This is DGCA previous year Question paper*\n"
-            "© 2026 examairways.com • Built with GeneratePress"
-        )
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("🔙 Back to Group Links", callback_data=f"materials_{prev_role}"))
-        markup.add(types.InlineKeyboardButton("🏠 Back to Start", callback_data="start_over"))
-        markup = add_footer_buttons(markup)
-
-        bot.edit_message_text(
-            faq_text + FOOTER_TEXT, chat_id, message_id, parse_mode="Markdown", reply_markup=markup, disable_web_page_preview=True
-        )
-
+    # Start the Bot
+    application.run_polling()
 
 if __name__ == "__main__":
-    print("Bot is polling...")
-    bot.infinity_polling()
+    main()
