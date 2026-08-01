@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# 1. Flask server to satisfy Render's port binding check
+# 1. Flask server to satisfy Render's port check and keep service alive
 app = Flask(__name__)
 
 @app.route("/")
@@ -21,14 +21,14 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
 
-# Logging setup
+# Logging configuration
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# Footer buttons attached across the bot
+# Footer buttons (All URLs strictly HTTPS)
 def get_footer_buttons():
     return [
         [InlineKeyboardButton("🌐 Main Website", url="https://examairways.com/")],
@@ -38,7 +38,7 @@ def get_footer_buttons():
                 url="https://whatsapp.com/channel/0029VbDBVyXJP212QuSRXb3f",
             )
         ],
-        [InlineKeyboardButton("✉️ Email Us", url="mailto:examairways@gmail.com")],
+        [InlineKeyboardButton("✉️ Email Us", callback_data="show_email")],
         [InlineKeyboardButton("❓ FAQs & Support", callback_data="show_faqs")],
     ]
 
@@ -72,8 +72,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
     data = query.data
 
+    # Display Email Action
+    if data == "show_email":
+        keyboard = [
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="restart")]
+        ] + get_footer_buttons()
+
+        await query.edit_message_text(
+            text="✉️ **Contact Support**\n\nYou can email us directly at:\n`examairways@gmail.com`\n\nWe respond to all queries within 24 hours.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+        )
+
     # Stream Selection
-    if data in ["stream_ame", "stream_pilot"]:
+    elif data in ["stream_ame", "stream_pilot"]:
         stream = "AME" if data == "stream_ame" else "PILOT"
         context.user_data["stream"] = stream
 
@@ -90,7 +102,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Coming Soon
+    # Coming Soon Section
     elif data == "coming_soon":
         keyboard = [
             [InlineKeyboardButton("🇮🇳 Select DGCA Instead", callback_data="authority_dgca")],
@@ -125,7 +137,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Raw Materials & Groups
+    # Raw Study Materials
     elif data == "opt_raw_materials":
         stream = context.user_data.get("stream", "PILOT")
 
@@ -164,7 +176,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Pilot E-Books Categories
+    # E-Books Main Menu
     elif data == "opt_ebooks_menu":
         keyboard = [
             [InlineKeyboardButton("⚙️ Technical General", callback_data="eb_tech_gen")],
@@ -181,7 +193,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Cleaned & Validated E-Book Links
+    # Sub-category E-Book links
     elif data.startswith("eb_"):
         keyboard = []
         if data == "eb_tech_gen":
@@ -237,7 +249,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Videos / ATPL Course
+    # Videos / Course Link
     elif data == "opt_videos":
         keyboard = [
             [InlineKeyboardButton("🎓 Pilot ATPL Course & Video Lectures", url="https://examairways.com/2215-2/")],
@@ -250,7 +262,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Just Exploring Option
+    # Just Exploring
     elif data == "opt_exploring":
         keyboard = [
             [InlineKeyboardButton("📖 Previous Year Question Papers", url="https://examairways.com/previous-year-question-paper/")],
@@ -317,7 +329,7 @@ def main():
     if not BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-    # Threaded Flask server for Render port checks
+    # Threaded Flask server for Render port check
     Thread(target=run_flask, daemon=True).start()
 
     application = Application.builder().token(BOT_TOKEN).build()
