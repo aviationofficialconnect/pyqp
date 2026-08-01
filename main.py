@@ -1,5 +1,7 @@
 import os
 import logging
+from threading import Thread
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -8,6 +10,17 @@ from telegram.ext import (
     ContextTypes,
 )
 
+# 1. Web server to satisfy Render's port check and keep bot alive 24/7
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "ExamAirways Telegram Bot is Live!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -15,7 +28,7 @@ logging.basicConfig(
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# Always-present footer buttons
+# Footer buttons always shown at the bottom
 def get_footer_buttons():
     return [
         [InlineKeyboardButton("🌐 Main Website", url="https://examairways.com/")],
@@ -90,12 +103,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 3: DGCA Selected -> Main Menu
+    # Step 3: DGCA Main Menu
     elif data == "authority_dgca":
         stream = context.user_data.get("stream", "PILOT")
 
         keyboard = [
-            [InlineKeyboardButton("📄 Access Raw Materials & PYQs", callback_data="opt_raw_materials")]
+            [InlineKeyboardButton("📄 Raw PYQs & Study Materials", callback_data="opt_raw_materials")]
         ]
 
         if stream == "PILOT":
@@ -112,7 +125,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 4A: Raw Materials Selected (Split by AME / PILOT)
+    # Step 4A: Raw Materials
     elif data == "opt_raw_materials":
         stream = context.user_data.get("stream", "PILOT")
 
@@ -124,7 +137,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 [InlineKeyboardButton("🧭 Nav", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
                 [InlineKeyboardButton("🌟 All in One Bundle", url="https://cosmofeed.com/vig/67bc9211da42c2001319d743")],
             ]
-        else:  # AME
+        else:  # AME Modules
             keyboard = [
                 [InlineKeyboardButton("Module 3", url="https://cosmofeed.com/vig/68b1e3a410b85b0013ee7000")],
                 [InlineKeyboardButton("Module 4", url="https://cosmofeed.com/vig/6885192563dd880013c871ec")],
@@ -146,12 +159,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         keyboard.extend(get_footer_buttons())
 
         await query.edit_message_text(
-            text=f"📚 **{stream} Premium Raw Study Materials & Groups:**\nSelect a subject/module below to get instant access:",
+            text=f"📚 **{stream} Raw Study Materials & Groups:**\nSelect an option below to access:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # Step 4B: Pilot E-Books Subject Selection Menu
+    # Step 4B: Pilot E-Books Subject Selection
     elif data == "opt_ebooks_menu":
         keyboard = [
             [InlineKeyboardButton("⚙️ Technical General", callback_data="eb_tech_gen")],
@@ -163,56 +176,56 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         ] + get_footer_buttons()
 
         await query.edit_message_text(
-            text="📚 **Pilot E-Books & Question Papers**\n\nPlease select a subject to view available e-books:",
+            text="📚 **Pilot E-Books & Question Papers**\n\nSelect a subject to view papers:",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown",
         )
 
-    # E-Book Subject Pages
+    # Step 4C: Shortened Button Titles (Prevents Telegram Crash)
     elif data.startswith("eb_"):
         keyboard = []
         if data == "eb_tech_gen":
             keyboard = [
-                [InlineKeyboardButton("Technical General Regular Session 1 2026", url="https://superprofile.bio/vp/technical-general-regular-seasons-1-2026")],
-                [InlineKeyboardButton("Tech Gen Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-regular-session-02-2026-")],
-                [InlineKeyboardButton("Tech Gen OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-olode-session-02-2026-")],
+                [InlineKeyboardButton("Tech Gen Regular Session 01 (2026)", url="https://superprofile.bio/vp/technical-general-regular-seasons-1-2026")],
+                [InlineKeyboardButton("Tech Gen Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-regular-session-02-2026-")],
+                [InlineKeyboardButton("Tech Gen OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-technical-general-olode-session-02-2026-")],
             ]
         elif data == "eb_met":
             keyboard = [
-                [InlineKeyboardButton("Aviation Metrology Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-aviation-metrology-regular-session-01-2026")],
-                [InlineKeyboardButton("Meteorology Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-regular-session-02-2026-")],
-                [InlineKeyboardButton("Meteorology OLODE Session 01 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-01-2026")],
-                [InlineKeyboardButton("Meteorology OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-02-2026")],
-                [InlineKeyboardButton("Meteorology OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-03-2026")],
-                [InlineKeyboardButton("Meteorology OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-04-2026")],
-                [InlineKeyboardButton("Meteorology OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-05-2026")],
+                [InlineKeyboardButton("Aviation Met Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-aviation-metrology-regular-session-01-2026")],
+                [InlineKeyboardButton("Meteorology Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-regular-session-02-2026-")],
+                [InlineKeyboardButton("Meteorology OLODE Session 01 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-01-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-02-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-03-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 04 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-04-2026")],
+                [InlineKeyboardButton("Meteorology OLODE Session 05 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-meteorology-olode-session-05-2026")],
             ]
         elif data == "eb_nav":
             keyboard = [
-                [InlineKeyboardButton("Air Navigation Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-air-navigation-regular-session-01-2026")],
-                [InlineKeyboardButton("Air Navigation Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-regular-session-02-2026-")],
-                [InlineKeyboardButton("Navigation Questions – 22 Jan 2026 OLODE 01", url="https://superprofile.bio/vp/dgca-navigation-questions-–-22-january-2026---olode-session-01-2026")],
-                [InlineKeyboardButton("Air Navigation OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-02-2026")],
-                [InlineKeyboardButton("Air Navigation OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-03-2026-812")],
-                [InlineKeyboardButton("Air Navigation OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-04-2026")],
-                [InlineKeyboardButton("Air Navigation OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-05-2026")],
+                [InlineKeyboardButton("Air Nav Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-air-navigation-regular-session-01-2026")],
+                [InlineKeyboardButton("Air Nav Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-regular-session-02-2026-")],
+                [InlineKeyboardButton("Air Nav Questions – 22 Jan OLODE 01", url="https://superprofile.bio/vp/dgca-navigation-questions-–-22-january-2026---olode-session-01-2026")],
+                [InlineKeyboardButton("Air Nav OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-02-2026")],
+                [InlineKeyboardButton("Air Nav OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-03-2026-812")],
+                [InlineKeyboardButton("Air Nav OLODE Session 04 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-04-2026")],
+                [InlineKeyboardButton("Air Nav OLODE Session 05 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-navigation-olode-session-05-2026")],
             ]
         elif data == "eb_reg":
             keyboard = [
-                [InlineKeyboardButton("Air Regulation Regular Session 01 2026", url="https://superprofile.bio/vp/dgca-air-regulation-regular-session-01-2026")],
-                [InlineKeyboardButton("Air Regulation Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-regular-session-02-2026-")],
-                [InlineKeyboardButton("Air Regulation OLODE Session 01 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-olode-session-01-2026")],
-                [InlineKeyboardButton("Air Regulations OLODE Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-02-2026")],
-                [InlineKeyboardButton("Air Regulations OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-03-2026")],
-                [InlineKeyboardButton("Air Regulations OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-04-2026")],
-                [InlineKeyboardButton("Air Regulations OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-05-2026")],
+                [InlineKeyboardButton("Air Reg Regular Session 01 (2026)", url="https://superprofile.bio/vp/dgca-air-regulation-regular-session-01-2026")],
+                [InlineKeyboardButton("Air Reg Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-regular-session-02-2026-")],
+                [InlineKeyboardButton("Air Reg OLODE Session 01 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulation-olode-session-01-2026")],
+                [InlineKeyboardButton("Air Reg OLODE Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-02-2026")],
+                [InlineKeyboardButton("Air Reg OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-03-2026")],
+                [InlineKeyboardButton("Air Reg OLODE Session 04 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-04-2026")],
+                [InlineKeyboardButton("Air Reg OLODE Session 05 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-air-regulations-olode-session-05-2026")],
             ]
         elif data == "eb_rtr":
             keyboard = [
-                [InlineKeyboardButton("RTR 1 Regular Session 02 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-regular-session-02-2026")],
-                [InlineKeyboardButton("RTR 1 OLODE Session 03 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-03-2026")],
-                [InlineKeyboardButton("RTR 1 OLODE Session 04 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-04-2026")],
-                [InlineKeyboardButton("RTR 1 OLODE Session 05 2026", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-05-2026")],
+                [InlineKeyboardButton("RTR 1 Regular Session 02 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-regular-session-02-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 03 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-03-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 04 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-04-2026")],
+                [InlineKeyboardButton("RTR 1 OLODE Session 05 (2026)", url="https://superprofile.bio/vp/dgca-question-paper-rtr-1-olode-session-05-2026")],
             ]
 
         keyboard.append([InlineKeyboardButton("🔙 Back to E-Book Subjects", callback_data="opt_ebooks_menu")])
@@ -250,7 +263,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
 
-    # Step 5: FAQs Section & Details
+    # FAQs Section
     elif data == "show_faqs":
         keyboard = [
             [InlineKeyboardButton("📩 How do I get study material?", callback_data="faq_1")],
@@ -304,9 +317,13 @@ def main():
     if not BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
+    # Start Flask Web Server on background thread so Render detects a running port
+    Thread(target=run_flask, daemon=True).start()
+
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
+    
     application.run_polling()
 
 
