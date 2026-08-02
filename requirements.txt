@@ -1,5 +1,6 @@
 python-telegram-bot>=20.0
 Flask==3.0.3
+gunicorn
 razorpay==1.4.2
 APScheduler==3.10.4
 python-dotenv==1.0.1
