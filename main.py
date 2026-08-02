@@ -773,12 +773,18 @@ def run_telegram_bot():
     logger.error("TELEGRAM_BOT_TOKEN environment variable is missing!")
     return
 
+  # Create a dedicated asyncio event loop for this background thread
+  loop = asyncio.new_event_loop()
+  asyncio.set_event_loop(loop)
+
   application = Application.builder().token(BOT_TOKEN).build()
   application.add_handler(CommandHandler("start", start))
   application.add_handler(CallbackQueryHandler(button_handler))
 
   logger.info("Telegram Bot Polling Started...")
-  application.run_polling(drop_pending_updates=True)
+
+  # CRITICAL FIX: stop_signals=None prevents the thread/signal handler error on Gunicorn/Render
+  application.run_polling(drop_pending_updates=True, stop_signals=None)
 
 
 # Start Telegram Bot thread automatically when server starts
