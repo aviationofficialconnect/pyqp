@@ -326,18 +326,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 def main():
-    if not BOT_TOKEN:
-        raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
+  if not BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set!")
 
-    # Threaded Flask server for Render port check
-    Thread(target=run_flask, daemon=True).start()
+  # 1. Start Flask in a background daemon thread BEFORE running polling
+  flask_thread = Thread(target=run_flask, daemon=True)
+  flask_thread.start()
+  print("Flask web server running in background on port check...")
 
-    application = Application.builder().token(BOT_TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    
-    application.run_polling()
+  # 2. Build and start Telegram Bot polling
+  application = Application.builder().token(BOT_TOKEN).build()
+  application.add_handler(CommandHandler("start", start))
+  application.add_handler(CallbackQueryHandler(button_handler))
+
+  print("Telegram Bot polling started...")
+  application.run_polling()
 
 
 if __name__ == "__main__":
-    main()
+  main()
